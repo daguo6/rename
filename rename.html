@@ -1,0 +1,1995 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高级批量重命名工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4F46E5',
+                        secondary: '#10B981',
+                        accent: '#F59E0B',
+                        dark: '#1E293B',
+                        light: '#F8FAFC'
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+            .hover-lift {
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+            .hover-lift:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 25px rgba(0, 0, 0, 0.1);
+            }
+            .rule-active {
+                @apply border-primary bg-indigo-50;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-inter text-gray-800 min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm sticky top-0 z-30">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-refresh text-primary text-xl"></i>
+                <h1 class="text-lg font-bold text-dark">高级批量重命名工具</h1>
+            </div>
+            <div class="flex items-center space-x-3">
+                <div class="hidden md:flex items-center space-x-1 bg-gray-100 rounded-full px-3 py-1">
+                    <i class="fa fa-info-circle text-xs text-gray-500"></i>
+                    <span class="text-xs text-gray-600">支持文件和文件夹操作</span>
+                </div>
+                <button id="helpBtn" class="text-gray-600 hover:text-primary transition-colors p-1.5 rounded-full hover:bg-gray-100">
+                    <i class="fa fa-question-circle"></i>
+                </button>
+                <button id="themeToggle" class="text-gray-600 hover:text-primary transition-colors p-1.5 rounded-full hover:bg-gray-100">
+                    <i class="fa fa-moon-o"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- 操作类型选择 -->
+        <div class="mb-6">
+            <div class="bg-white rounded-lg p-4 card-shadow">
+                <h2 class="text-sm font-medium text-gray-500 mb-3">操作类型</h2>
+                <div class="flex flex-wrap gap-3">
+                    <label class="cursor-pointer flex items-center">
+                        <input type="radio" name="operationType" value="files" class="hidden peer" checked>
+                        <span class="flex items-center px-4 py-2 rounded-md border peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:text-primary transition-all">
+                            <i class="fa fa-file-o mr-2"></i>文件
+                        </span>
+                    </label>
+                    <label class="cursor-pointer flex items-center">
+                        <input type="radio" name="operationType" value="folders" class="hidden peer">
+                        <span class="flex items-center px-4 py-2 rounded-md border peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:text-primary transition-all">
+                            <i class="fa fa-folder-o mr-2"></i>文件夹
+                        </span>
+                    </label>
+                    <label class="cursor-pointer flex items-center">
+                        <input type="radio" name="operationType" value="createFolders" class="hidden peer">
+                        <span class="flex items-center px-4 py-2 rounded-md border peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:text-primary transition-all">
+                            <i class="fa fa-plus-square-o mr-2"></i>创建文件夹
+                        </span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主要操作区 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 左侧：源文件/夹 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg overflow-hidden card-shadow hover-lift h-full">
+                    <div class="bg-gray-50 px-5 py-3 border-b flex justify-between items-center">
+                        <h3 class="font-medium text-gray-800">源文件/夹</h3>
+                        <div id="sourceCounter" class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">0 项</div>
+                    </div>
+                    <div class="p-5">
+                        <!-- 文件/文件夹选择 -->
+                        <div id="fileSelection" class="space-y-4">
+                            <div id="dropArea" class="border-2 border-dashed border-gray-300 rounded-lg p-5 text-center hover:border-primary transition-colors cursor-pointer">
+                                <i class="fa fa-arrow-down text-gray-400 mb-2"></i>
+                                <p class="text-sm text-gray-600 mb-3">拖放文件或文件夹到这里</p>
+                                <button id="browseBtn" class="bg-primary/10 hover:bg-primary/20 text-primary text-sm py-1.5 px-4 rounded-md transition-colors">
+                                    <i class="fa fa-folder-open mr-1"></i>浏览
+                                </button>
+                                <input type="file" id="fileInput" multiple class="hidden">
+                                <input type="file" id="folderInput" webkitdirectory directory multiple class="hidden">
+                            </div>
+                            
+                            <div class="flex justify-between items-center">
+                                <button id="clearSource" class="text-gray-500 hover:text-red-500 text-sm transition-colors">
+                                    <i class="fa fa-trash mr-1"></i>清空
+                                </button>
+                                <span class="text-xs text-gray-400">支持多选</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 创建文件夹选项 -->
+                        <div id="folderCreation" class="space-y-4 hidden">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">创建数量</label>
+                                <input type="number" id="folderCount" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="5" min="1">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">基础名称</label>
+                                <input type="text" id="folderBaseName" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="文件夹">
+                            </div>
+                        </div>
+                        
+                        <!-- 源列表 -->
+                        <div id="sourceListContainer" class="mt-4 hidden">
+                            <div class="text-xs text-gray-500 mb-2 flex justify-between items-center">
+                                <span>已选择</span>
+                                <span id="sourceListCount">0 项</span>
+                            </div>
+                            <div id="sourceList" class="max-h-40 overflow-y-auto text-sm border rounded-md p-2 space-y-1 text-gray-700">
+                                <!-- 源列表将在这里动态生成 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧：设置和预览 -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-lg overflow-hidden card-shadow hover-lift mb-6">
+                    <div class="bg-gray-50 px-5 py-3 border-b">
+                        <h3 class="font-medium text-gray-800">命名规则</h3>
+                    </div>
+                    <div class="p-5">
+                        <!-- 规则列表 -->
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-600">应用以下规则（按顺序）</span>
+                                <button id="addRule" class="text-sm bg-primary/10 hover:bg-primary/20 text-primary py-1 px-3 rounded-md transition-colors">
+                                    <i class="fa fa-plus mr-1"></i>添加规则
+                                </button>
+                            </div>
+                            
+                            <div id="rulesContainer" class="space-y-3">
+                                <!-- 规则将在这里动态生成 -->
+                                <div class="rule-item border rounded-md p-3 rule-active" data-id="1">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div class="flex items-center">
+                                            <span class="bg-primary text-white text-xs w-5 h-5 rounded-full flex items-center justify-center mr-2">1</span>
+                                            <select class="rule-type border-none focus:ring-0 text-gray-800 text-sm font-medium" data-id="1">
+                                                <option value="prefix-suffix">前缀/后缀</option>
+                                                <option value="insert">指定位置插入</option>
+                                                <option value="delete">删除字符</option>
+                                                <option value="replace">查找替换</option>
+                                                <option value="sequence">序列编号</option>
+                                                <option value="uppercase">转为大写</option>
+                                                <option value="lowercase">转为小写</option>
+                                                <option value="capitalize">首字母大写</option>
+                                                <option value="trim">去除空格</option>
+                                            </select>
+                                        </div>
+                                        <button class="delete-rule text-gray-400 hover:text-red-500 transition-colors" data-id="1" disabled>
+                                            <i class="fa fa-times"></i>
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="rule-options" data-id="1">
+                                        <!-- 前缀/后缀选项 -->
+                                        <div class="prefix-suffix-options">
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label for="prefixText_1" class="block text-xs text-gray-700 font-medium mb-1">前缀文本</label>
+                                                    <input type="text" id="prefixText_1" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50">
+                                                </div>
+                                                <div>
+                                                    <label for="suffixText_1" class="block text-xs text-gray-700 font-medium mb-1">后缀文本</label>
+                                                    <input type="text" id="suffixText_1" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 保存选项 -->
+                        <div class="mt-6 pt-4 border-t">
+                            <h4 class="font-medium text-gray-800 mb-3">保存选项</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-gray-700 font-medium mb-1">保存位置</label>
+                                    <div class="flex">
+                                        <input type="text" id="saveDirDisplay" class="flex-1 px-3 py-1.5 text-sm border rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary/50 bg-gray-50" readonly placeholder="未选择">
+                                        <button id="selectSaveDir" class="bg-primary hover:bg-primary/90 text-white text-sm px-3 py-1.5 rounded-r-md transition-colors">
+                                            <i class="fa fa-folder-open"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-700 font-medium mb-1">文件处理选项</label>
+                                    <div class="space-y-2">
+                                        <label class="flex items-center text-sm">
+                                            <input type="checkbox" id="overwriteFiles" class="mr-1">
+                                            <span class="text-gray-700">覆盖目标位置与重命名后同名的文件</span>
+                                        </label>
+                                        <label class="flex items-center text-sm">
+                                            <input type="checkbox" id="deleteOriginal" class="mr-1">
+                                            <span class="text-gray-700">删除原文件（只保留重命名后的文件）</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 预览和操作按钮 -->
+                <div class="bg-white rounded-lg overflow-hidden card-shadow hover-lift">
+                    <div class="bg-gray-50 px-5 py-3 border-b flex justify-between items-center">
+                        <h3 class="font-medium text-gray-800">预览</h3>
+                        <button id="applyChanges" class="bg-secondary hover:bg-secondary/90 text-white text-sm py-1 px-4 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            <i class="fa fa-check mr-1"></i>应用更改
+                        </button>
+                    </div>
+                    <div class="p-5">
+                        <div id="previewContainer" class="text-sm">
+                            <div class="text-gray-500 text-center py-6">
+                                <i class="fa fa-eye-slash mb-2 text-gray-300"></i>
+                                <p>选择文件/文件夹并设置规则后显示预览</p>
+                            </div>
+                        </div>
+                        
+                        <!-- 结果区域 -->
+                        <div id="resultsContainer" class="hidden text-sm">
+                            <div class="flex justify-between items-center mb-3 pb-2 border-b">
+                                <h4 class="font-medium text-gray-800">操作结果</h4>
+                                <span id="resultsSummary" class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">成功: 0, 失败: 0</span>
+                            </div>
+                            <div id="resultsList" class="max-h-40 overflow-y-auto space-y-1">
+                                <!-- 结果将在这里动态生成 -->
+                            </div>
+                            <div class="mt-4 flex justify-end">
+                                <button id="openSaveDir" class="bg-accent/10 hover:bg-accent/20 text-accent text-sm py-1.5 px-4 rounded-md transition-colors">
+                                    <i class="fa fa-folder-open mr-1"></i>打开保存目录
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 操作确认对话框 -->
+    <div id="confirmDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg max-w-md w-full m-4">
+            <div class="p-5 border-b">
+                <h3 class="text-lg font-bold">确认操作</h3>
+            </div>
+            <div class="p-5">
+                <p id="confirmMessage" class="text-gray-700 mb-4">操作确认信息将显示在这里</p>
+                <div id="confirmItemsList" class="max-h-40 overflow-y-auto text-sm border rounded-md p-2 mb-4 bg-gray-50 hidden">
+                    <!-- 要操作的项目将在这里显示 -->
+                </div>
+                <div id="deleteWarning" class="hidden bg-amber-50 border border-amber-200 rounded-md p-3 mb-4">
+                    <div class="flex">
+                        <i class="fa fa-exclamation-triangle text-amber-500 mt-0.5 mr-2"></i>
+                        <p class="text-sm text-amber-700">删除原文件操作需要您手动确认每个文件的删除。请在弹出的文件选择器中选择要删除的文件。</p>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button id="cancelOperation" class="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50 transition-colors">
+                        取消
+                    </button>
+                    <button id="confirmOperation" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors">
+                        确认
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 帮助模态框 -->
+    <div id="helpModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-bold">使用帮助</h3>
+                <button id="closeHelp" class="text-gray-500 hover:text-gray-700 p-1">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="p-5">
+                <div class="space-y-4">
+                    <div>
+                        <h4 class="font-bold mb-2">文件处理选项说明</h4>
+                        <ul class="list-disc list-inside text-gray-700 text-sm space-y-2">
+                            <li><strong>覆盖目标位置与重命名后同名的文件</strong>：当目标位置已存在与新文件名相同的文件时，会替换该文件</li>
+                            <li><strong>删除原文件</strong>：重命名并保存新文件后，会删除原始文件，只保留重命名后的文件</li>
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-bold mb-2">关于删除原文件</h4>
+                        <p class="text-gray-700 text-sm">由于浏览器安全限制，删除原文件时需要您手动确认每个文件：</p>
+                        <ol class="list-decimal list-inside mt-2 ml-2 text-gray-700 text-sm space-y-1">
+                            <li>系统会弹出文件选择器</li>
+                            <li>请在选择器中找到并选择要删除的原文件</li>
+                            <li>确认删除操作</li>
+                        </ol>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-bold mb-2">关于打开保存目录</h4>
+                        <p class="text-gray-700 text-sm">由于浏览器安全限制，直接打开目录可能无法在所有浏览器中工作。如果按钮点击后没有反应，请使用以下方法：</p>
+                        <ol class="list-decimal list-inside mt-2 ml-2 text-gray-700 text-sm space-y-1">
+                            <li>点击"打开保存目录"按钮</li>
+                            <li>在弹出的通知中点击"复制路径"</li>
+                            <li>打开文件资源管理器（Windows）或Finder（Mac）</li>
+                            <li>粘贴复制的路径并按回车</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知组件 -->
+    <div id="notification" class="fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center z-50 text-sm">
+        <i id="notificationIcon" class="mr-2"></i>
+        <span id="notificationMessage"></span>
+        <button id="copyPathBtn" class="ml-3 text-xs px-2 py-0.5 rounded bg-white/30 hidden">
+            复制路径
+        </button>
+    </div>
+
+    <script>
+        // 全局变量
+        let selectedItems = []; // 选中的文件或文件夹
+        let selectedItemHandles = []; // 文件/文件夹句柄
+        let selectedItemPaths = []; // 存储原始文件的完整路径
+        let saveDirectory = null;
+        let saveDirectoryPath = '';
+        let operationType = 'files'; // files, folders, createFolders
+        let folderCount = 5;
+        let folderBaseName = '文件夹';
+        let itemsToConfirm = []; // 存储需要确认操作的项目
+        
+        // 规则配置
+        let rules = [
+            {
+                id: 1,
+                type: 'prefix-suffix',
+                prefix: '',
+                suffix: '',
+                position: 0,
+                insertText: '',
+                deleteStart: 0,
+                deleteCount: 1,
+                find: '',
+                replace: '',
+                caseSensitive: false,
+                baseName: 'file',
+                startNumber: 1,
+                numberPadding: 1,
+                separator: ' ',
+                keepOriginalName: false,
+                numberPosition: 'before'
+            }
+        ];
+
+        // DOM 元素
+        const elements = {
+            // 操作类型
+            operationTypeRadios: document.querySelectorAll('input[name="operationType"]'),
+            
+            // 源文件/夹
+            dropArea: document.getElementById('dropArea'),
+            browseBtn: document.getElementById('browseBtn'),
+            fileInput: document.getElementById('fileInput'),
+            folderInput: document.getElementById('folderInput'),
+            clearSource: document.getElementById('clearSource'),
+            sourceListContainer: document.getElementById('sourceListContainer'),
+            sourceList: document.getElementById('sourceList'),
+            sourceListCount: document.getElementById('sourceListCount'),
+            sourceCounter: document.getElementById('sourceCounter'),
+            
+            // 创建文件夹
+            folderCreation: document.getElementById('folderCreation'),
+            fileSelection: document.getElementById('fileSelection'),
+            folderCount: document.getElementById('folderCount'),
+            folderBaseName: document.getElementById('folderBaseName'),
+            
+            // 规则设置
+            rulesContainer: document.getElementById('rulesContainer'),
+            addRule: document.getElementById('addRule'),
+            
+            // 保存选项
+            saveDirDisplay: document.getElementById('saveDirDisplay'),
+            selectSaveDir: document.getElementById('selectSaveDir'),
+            overwriteFiles: document.getElementById('overwriteFiles'),
+            deleteOriginal: document.getElementById('deleteOriginal'),
+            
+            // 预览和操作
+            previewContainer: document.getElementById('previewContainer'),
+            resultsContainer: document.getElementById('resultsContainer'),
+            resultsList: document.getElementById('resultsList'),
+            resultsSummary: document.getElementById('resultsSummary'),
+            applyChanges: document.getElementById('applyChanges'),
+            openSaveDir: document.getElementById('openSaveDir'),
+            
+            // 确认对话框
+            confirmDialog: document.getElementById('confirmDialog'),
+            confirmMessage: document.getElementById('confirmMessage'),
+            confirmItemsList: document.getElementById('confirmItemsList'),
+            deleteWarning: document.getElementById('deleteWarning'),
+            cancelOperation: document.getElementById('cancelOperation'),
+            confirmOperation: document.getElementById('confirmOperation'),
+            
+            // 其他
+            helpBtn: document.getElementById('helpBtn'),
+            helpModal: document.getElementById('helpModal'),
+            closeHelp: document.getElementById('closeHelp'),
+            themeToggle: document.getElementById('themeToggle'),
+            notification: document.getElementById('notification'),
+            notificationIcon: document.getElementById('notificationIcon'),
+            notificationMessage: document.getElementById('notificationMessage'),
+            copyPathBtn: document.getElementById('copyPathBtn')
+        };
+
+        // 初始化事件监听
+        function initEventListeners() {
+            // 操作类型变更
+            elements.operationTypeRadios.forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    operationType = e.target.value;
+                    updateOperationUI();
+                    resetSource();
+                    updatePreview();
+                    updateApplyButtonState();
+                });
+            });
+            
+            // 文件/文件夹选择
+            elements.browseBtn.addEventListener('click', browseItems);
+            elements.fileInput.addEventListener('change', handleFileSelection);
+            elements.folderInput.addEventListener('change', handleFolderSelection);
+            
+            // 拖放事件
+            elements.dropArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                elements.dropArea.classList.add('border-primary');
+            });
+            
+            elements.dropArea.addEventListener('dragleave', () => {
+                elements.dropArea.classList.remove('border-primary');
+            });
+            
+            elements.dropArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                elements.dropArea.classList.remove('border-primary');
+                
+                if (operationType === 'files') {
+                    if (e.dataTransfer.files.length) {
+                        handleFiles(e.dataTransfer.files);
+                    }
+                } else if (operationType === 'folders') {
+                    // 处理文件夹拖放
+                    handleDroppedFolders(e.dataTransfer.items);
+                }
+            });
+            
+            // 清空源列表
+            elements.clearSource.addEventListener('click', resetSource);
+            
+            // 文件夹创建选项
+            elements.folderCount.addEventListener('input', (e) => {
+                folderCount = Math.max(1, parseInt(e.target.value) || 1);
+                e.target.value = folderCount;
+                updatePreview();
+            });
+            
+            elements.folderBaseName.addEventListener('input', (e) => {
+                folderBaseName = e.target.value;
+                updatePreview();
+            });
+            
+            // 规则管理
+            elements.addRule.addEventListener('click', addNewRule);
+            
+            // 保存目录选择
+            elements.selectSaveDir.addEventListener('click', selectSaveDirectory);
+            
+            // 应用更改
+            elements.applyChanges.addEventListener('click', prepareApplyChanges);
+            
+            // 打开保存目录
+            elements.openSaveDir.addEventListener('click', openSaveDirectory);
+            
+            // 确认对话框事件
+            elements.cancelOperation.addEventListener('click', () => {
+                elements.confirmDialog.classList.add('hidden');
+                itemsToConfirm = [];
+                // 恢复按钮状态
+                elements.applyChanges.disabled = false;
+                elements.applyChanges.innerHTML = '<i class="fa fa-check mr-1"></i>应用更改';
+            });
+            
+            elements.confirmOperation.addEventListener('click', () => {
+                elements.confirmDialog.classList.add('hidden');
+                proceedWithOperation(); // 继续执行操作
+            });
+            
+            // 帮助模态框
+            elements.helpBtn.addEventListener('click', () => elements.helpModal.classList.remove('hidden'));
+            elements.closeHelp.addEventListener('click', () => elements.helpModal.classList.add('hidden'));
+            elements.helpModal.addEventListener('click', (e) => {
+                if (e.target === elements.helpModal) {
+                    elements.helpModal.classList.add('hidden');
+                }
+            });
+            
+            // 主题切换
+            elements.themeToggle.addEventListener('click', toggleTheme);
+            
+            // 通知相关
+            elements.copyPathBtn.addEventListener('click', copyCurrentPath);
+        }
+
+        // 更新操作类型UI
+        function updateOperationUI() {
+            if (operationType === 'createFolders') {
+                elements.folderCreation.classList.remove('hidden');
+                elements.fileSelection.classList.add('hidden');
+                elements.sourceListContainer.classList.add('hidden');
+            } else {
+                elements.folderCreation.classList.add('hidden');
+                elements.fileSelection.classList.remove('hidden');
+                
+                // 更新浏览按钮提示
+                if (operationType === 'files') {
+                    elements.browseBtn.innerHTML = '<i class="fa fa-folder-open mr-1"></i>浏览文件';
+                } else {
+                    elements.browseBtn.innerHTML = '<i class="fa fa-folder-open mr-1"></i>浏览文件夹';
+                }
+            }
+        }
+
+        // 浏览项目（文件或文件夹）
+        function browseItems() {
+            if (operationType === 'files') {
+                elements.fileInput.click();
+            } else if (operationType === 'folders') {
+                elements.folderInput.click();
+            }
+        }
+
+        // 处理文件选择
+        function handleFileSelection(e) {
+            if (e.target.files.length) {
+                handleFiles(e.target.files);
+            }
+        }
+
+        // 处理文件夹选择
+        function handleFolderSelection(e) {
+            if (e.target.files.length) {
+                handleFolders(e.target.files);
+            }
+        }
+
+        // 处理拖放的文件夹
+        async function handleDroppedFolders(items) {
+            const folders = [];
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i].webkitGetAsEntry();
+                if (item && item.isDirectory) {
+                    folders.push(item);
+                }
+            }
+            
+            if (folders.length > 0) {
+                await processDroppedFolders(folders);
+            }
+        }
+
+        // 处理拖放的文件夹
+        async function processDroppedFolders(folders) {
+            selectedItems = [];
+            selectedItemHandles = [];
+            selectedItemPaths = [];
+            
+            for (const folder of folders) {
+                selectedItems.push({
+                    name: folder.name,
+                    isDirectory: true
+                });
+                
+                // 尝试获取文件夹句柄
+                try {
+                    const handle = await window.showDirectoryPicker({
+                        startIn: folder.name
+                    });
+                    selectedItemHandles.push(handle);
+                    
+                    // 获取文件夹路径
+                    const path = await getDirectoryPath(handle);
+                    selectedItemPaths.push(path);
+                } catch (err) {
+                    console.error('获取文件夹句柄失败:', err);
+                    showNotification(`无法访问文件夹: ${folder.name}`, 'error');
+                }
+            }
+            
+            updateSourceList();
+            updatePreview();
+            updateApplyButtonState();
+        }
+
+        // 处理文件
+        function handleFiles(files) {
+            selectedItems = Array.from(files).map(file => ({
+                name: file.name,
+                file: file,
+                isDirectory: false
+            }));
+            
+            // 保存文件对象和路径
+            selectedItemHandles = selectedItems.map(item => item.file);
+            selectedItemPaths = selectedItems.map(item => item.file.webkitRelativePath || item.name);
+            
+            updateSourceList();
+            updatePreview();
+            updateApplyButtonState();
+            showNotification(`已添加 ${files.length} 个文件`, 'success');
+        }
+
+        // 处理文件夹
+        function handleFolders(folders) {
+            selectedItems = Array.from(folders).map(folder => ({
+                name: folder.name,
+                path: folder.webkitRelativePath,
+                isDirectory: true
+            }));
+            
+            // 保存文件夹路径和句柄
+            selectedItemHandles = selectedItems.map(item => item.path);
+            selectedItemPaths = selectedItems.map(item => item.path);
+            
+            updateSourceList();
+            updatePreview();
+            updateApplyButtonState();
+            showNotification(`已添加 ${folders.length} 个文件夹`, 'success');
+        }
+
+        // 更新源列表
+        function updateSourceList() {
+            if (selectedItems.length === 0) {
+                elements.sourceListContainer.classList.add('hidden');
+                elements.sourceCounter.textContent = '0 项';
+                return;
+            }
+            
+            elements.sourceListContainer.classList.remove('hidden');
+            elements.sourceList.innerHTML = '';
+            elements.sourceListCount.textContent = `${selectedItems.length} 项`;
+            elements.sourceCounter.textContent = `${selectedItems.length} 项`;
+            
+            selectedItems.forEach((item, index) => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'flex justify-between items-center p-1.5 hover:bg-gray-50 rounded';
+                
+                const icon = item.isDirectory ? 'fa-folder-o text-accent' : 'fa-file-o text-primary';
+                
+                itemElement.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fa ${icon} mr-2 text-xs"></i>
+                        <span class="truncate max-w-[200px]">${item.name}</span>
+                    </div>
+                    <button class="text-gray-400 hover:text-red-500 transition-colors remove-item" data-index="${index}">
+                        <i class="fa fa-times text-xs"></i>
+                    </button>
+                `;
+                
+                elements.sourceList.appendChild(itemElement);
+            });
+            
+            // 添加删除项目事件
+            document.querySelectorAll('.remove-item').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(e.currentTarget.dataset.index);
+                    selectedItems.splice(index, 1);
+                    selectedItemHandles.splice(index, 1);
+                    selectedItemPaths.splice(index, 1);
+                    updateSourceList();
+                    updatePreview();
+                    updateApplyButtonState();
+                });
+            });
+        }
+
+        // 重置源
+        function resetSource() {
+            selectedItems = [];
+            selectedItemHandles = [];
+            selectedItemPaths = [];
+            updateSourceList();
+        }
+
+        // 添加新规则
+        function addNewRule() {
+            const newId = Math.max(...rules.map(r => r.id)) + 1;
+            const newRule = {
+                id: newId,
+                type: 'prefix-suffix',
+                prefix: '',
+                suffix: '',
+                position: 0,
+                insertText: '',
+                deleteStart: 0,
+                deleteCount: 1,
+                find: '',
+                replace: '',
+                caseSensitive: false,
+                baseName: 'item',
+                startNumber: 1,
+                numberPadding: 1,
+                separator: ' ',
+                keepOriginalName: false,
+                numberPosition: 'before'
+            };
+            
+            rules.push(newRule);
+            renderRules();
+            
+            // 启用所有删除按钮
+            document.querySelectorAll('.delete-rule').forEach(btn => {
+                btn.disabled = false;
+            });
+            
+            updatePreview();
+            showNotification('已添加新规则', 'info');
+        }
+
+        // 渲染规则列表
+        function renderRules() {
+            elements.rulesContainer.innerHTML = '';
+            
+            rules.forEach((rule, index) => {
+                const ruleItem = document.createElement('div');
+                ruleItem.className = `rule-item border rounded-md p-3 ${index === 0 ? 'rule-active' : ''}`;
+                ruleItem.dataset.id = rule.id;
+                
+                // 规则类型选择器
+                let ruleTypeSelector = `
+                    <select class="rule-type border-none focus:ring-0 text-gray-800 text-sm font-medium" data-id="${rule.id}">
+                        <option value="prefix-suffix" ${rule.type === 'prefix-suffix' ? 'selected' : ''}>前缀/后缀</option>
+                        <option value="insert" ${rule.type === 'insert' ? 'selected' : ''}>指定位置插入</option>
+                        <option value="delete" ${rule.type === 'delete' ? 'selected' : ''}>删除字符</option>
+                        <option value="replace" ${rule.type === 'replace' ? 'selected' : ''}>查找替换</option>
+                        <option value="sequence" ${rule.type === 'sequence' ? 'selected' : ''}>序列编号</option>
+                        <option value="uppercase" ${rule.type === 'uppercase' ? 'selected' : ''}>转为大写</option>
+                        <option value="lowercase" ${rule.type === 'lowercase' ? 'selected' : ''}>转为小写</option>
+                        <option value="capitalize" ${rule.type === 'capitalize' ? 'selected' : ''}>首字母大写</option>
+                        <option value="trim" ${rule.type === 'trim' ? 'selected' : ''}>去除空格</option>
+                    </select>
+                `;
+                
+                // 根据规则类型生成选项HTML
+                let optionsHtml = '';
+                
+                switch(rule.type) {
+                    case 'prefix-suffix':
+                        optionsHtml = `
+                            <div class="prefix-suffix-options">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label for="prefixText_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">前缀文本</label>
+                                        <input type="text" id="prefixText_${rule.id}" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="${escapeHtml(rule.prefix)}">
+                                    </div>
+                                    <div>
+                                        <label for="suffixText_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">后缀文本</label>
+                                        <input type="text" id="suffixText_${rule.id}" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="${escapeHtml(rule.suffix)}">
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        break;
+                        
+                    case 'insert':
+                        optionsHtml = `
+                            <div class="insert-options">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label for="insertPosition_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">插入位置 (字符索引)</label>
+                                        <input type="number" id="insertPosition_${rule.id}" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="${rule.position}" min="0">
+                                        <p class="text-xs text-gray-500 mt-1">0 = 开头, -1 = 结尾</p>
+                                    </div>
+                                    <div>
+                                        <label for="insertText_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">插入文本</label>
+                                        <input type="text" id="insertText_${rule.id}" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="${escapeHtml(rule.insertText)}">
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        break;
+                        
+                    case 'delete':
+                        optionsHtml = `
+                            <div class="delete-options">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label for="deleteStart_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">开始位置</label>
+                                        <input type="number" id="deleteStart_${rule.id}" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="${rule.deleteStart}" min="0">
+                                    </div>
+                                    <div>
+                                        <label for="deleteCount_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">删除字符数</label>
+                                        <input type="number" id="deleteCount_${rule.id}" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="${rule.deleteCount}" min="1">
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        break;
+                        
+                    case 'replace':
+                        optionsHtml = `
+                            <div class="replace-options">
+                                <div class="mb-3">
+                                    <label for="findText_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">查找文本</label>
+                                    <input type="text" id="findText_${rule.id}" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="${escapeHtml(rule.find)}">
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label for="replaceText_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">替换为</label>
+                                        <input type="text" id="replaceText_${rule.id}" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="${escapeHtml(rule.replace)}">
+                                    </div>
+                                    <div>
+                                        <label for="caseSensitive_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">匹配选项</label>
+                                        <label class="flex items-center text-sm">
+                                            <input type="checkbox" id="caseSensitive_${rule.id}" class="mr-1" ${rule.caseSensitive ? 'checked' : ''}>
+                                            <span class="text-gray-700">区分大小写</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        break;
+                        
+                    case 'sequence':
+                        optionsHtml = `
+                            <div class="sequence-options">
+                                <div class="mb-3">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="keepOriginalName_${rule.id}" class="mr-1" ${rule.keepOriginalName ? 'checked' : ''}>
+                                        <span class="text-gray-700 text-sm">保留原名称</span>
+                                    </label>
+                                </div>
+                                
+                                <div id="originalNameOptions_${rule.id}" class="${rule.keepOriginalName ? '' : 'hidden'} mb-3">
+                                    <label class="block text-xs text-gray-700 font-medium mb-1">序号位置</label>
+                                    <div class="flex space-x-4">
+                                        <label class="flex items-center text-sm">
+                                            <input type="radio" name="numberPosition_${rule.id}" value="before" class="mr-1" ${rule.numberPosition === 'before' ? 'checked' : ''}>
+                                            <span>序号在前</span>
+                                        </label>
+                                        <label class="flex items-center text-sm">
+                                            <input type="radio" name="numberPosition_${rule.id}" value="after" class="mr-1" ${rule.numberPosition === 'after' ? 'checked' : ''}>
+                                            <span>序号在后</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label for="baseName_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">基础名称 ${!rule.keepOriginalName ? '(不保留原名称时使用)' : ''}</label>
+                                        <input type="text" id="baseName_${rule.id}" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="${escapeHtml(rule.baseName)}">
+                                    </div>
+                                    <div>
+                                        <label for="startNumber_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">起始编号</label>
+                                        <input type="number" id="startNumber_${rule.id}" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="${rule.startNumber}" min="0">
+                                    </div>
+                                    <div>
+                                        <label for="numberPadding_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">数字位数（补零）</label>
+                                        <input type="number" id="numberPadding_${rule.id}" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50" value="${rule.numberPadding}" min="1" max="10">
+                                    </div>
+                                    <div>
+                                        <label for="separator_${rule.id}" class="block text-xs text-gray-700 font-medium mb-1">分隔符</label>
+                                        <select id="separator_${rule.id}" class="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50">
+                                            <option value="-" ${rule.separator === '-' ? 'selected' : ''}>- 横线</option>
+                                            <option value="_" ${rule.separator === '_' ? 'selected' : ''}>_ 下划线</option>
+                                            <option value=" " ${rule.separator === ' ' ? 'selected' : ''}> 空格</option>
+                                            <option value="." ${rule.separator === '.' ? 'selected' : ''}>. 点号</option>
+                                            <option value="" ${rule.separator === '' ? 'selected' : ''}>无</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        break;
+                        
+                    case 'uppercase':
+                    case 'lowercase':
+                    case 'capitalize':
+                    case 'trim':
+                        optionsHtml = `
+                            <div class="text-gray-600 text-xs mt-1">
+                                此规则将${getRuleDescription(rule.type)}
+                            </div>
+                        `;
+                        break;
+                }
+                
+                ruleItem.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="flex items-center">
+                            <span class="bg-primary text-white text-xs w-5 h-5 rounded-full flex items-center justify-center mr-2">${index + 1}</span>
+                            ${ruleTypeSelector}
+                        </div>
+                        <button class="delete-rule text-gray-400 hover:text-red-500 transition-colors" data-id="${rule.id}" ${rules.length <= 1 ? 'disabled' : ''}>
+                            <i class="fa fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="rule-options" data-id="${rule.id}">
+                        ${optionsHtml}
+                    </div>
+                `;
+                
+                elements.rulesContainer.appendChild(ruleItem);
+            });
+            
+            // 添加规则事件监听
+            attachRuleEventListeners();
+        }
+
+        // 获取规则描述
+        function getRuleDescription(type) {
+            const descriptions = {
+                'uppercase': '将名称转换为全大写',
+                'lowercase': '将名称转换为全小写',
+                'capitalize': '将名称中每个单词的首字母转为大写',
+                'trim': '删除名称中的所有空格'
+            };
+            return descriptions[type] || '';
+        }
+
+        // 为规则添加事件监听
+        function attachRuleEventListeners() {
+            // 规则类型变更
+            document.querySelectorAll('.rule-type').forEach(select => {
+                select.addEventListener('change', (e) => {
+                    const ruleId = parseInt(e.currentTarget.dataset.id);
+                    const newType = e.currentTarget.value;
+                    
+                    // 更新规则类型
+                    const ruleIndex = rules.findIndex(r => r.id === ruleId);
+                    if (ruleIndex !== -1) {
+                        rules[ruleIndex].type = newType;
+                        renderRules();
+                        updatePreview();
+                    }
+                });
+            });
+            
+            // 规则输入变更
+            rules.forEach(rule => {
+                switch(rule.type) {
+                    case 'prefix-suffix':
+                        document.getElementById(`prefixText_${rule.id}`)?.addEventListener('input', (e) => {
+                            updateRuleProperty(rule.id, 'prefix', e.target.value);
+                        });
+                        document.getElementById(`suffixText_${rule.id}`)?.addEventListener('input', (e) => {
+                            updateRuleProperty(rule.id, 'suffix', e.target.value);
+                        });
+                        break;
+                        
+                    case 'insert':
+                        document.getElementById(`insertPosition_${rule.id}`)?.addEventListener('input', (e) => {
+                            updateRuleProperty(rule.id, 'position', parseInt(e.target.value) || 0);
+                        });
+                        document.getElementById(`insertText_${rule.id}`)?.addEventListener('input', (e) => {
+                            updateRuleProperty(rule.id, 'insertText', e.target.value);
+                        });
+                        break;
+                        
+                    case 'delete':
+                        document.getElementById(`deleteStart_${rule.id}`)?.addEventListener('input', (e) => {
+                            updateRuleProperty(rule.id, 'deleteStart', parseInt(e.target.value) || 0);
+                        });
+                        document.getElementById(`deleteCount_${rule.id}`)?.addEventListener('input', (e) => {
+                            updateRuleProperty(rule.id, 'deleteCount', parseInt(e.target.value) || 1);
+                        });
+                        break;
+                        
+                    case 'replace':
+                        document.getElementById(`findText_${rule.id}`)?.addEventListener('input', (e) => {
+                            updateRuleProperty(rule.id, 'find', e.target.value);
+                        });
+                        document.getElementById(`replaceText_${rule.id}`)?.addEventListener('input', (e) => {
+                            updateRuleProperty(rule.id, 'replace', e.target.value);
+                        });
+                        document.getElementById(`caseSensitive_${rule.id}`)?.addEventListener('change', (e) => {
+                            updateRuleProperty(rule.id, 'caseSensitive', e.target.checked);
+                        });
+                        break;
+                        
+                    case 'sequence':
+                        document.getElementById(`keepOriginalName_${rule.id}`)?.addEventListener('change', (e) => {
+                            const keepOriginal = e.target.checked;
+                            updateRuleProperty(rule.id, 'keepOriginalName', keepOriginal);
+                            
+                            // 显示或隐藏序号位置选项
+                            const optionsDiv = document.getElementById(`originalNameOptions_${rule.id}`);
+                            if (keepOriginal) {
+                                optionsDiv.classList.remove('hidden');
+                            } else {
+                                optionsDiv.classList.add('hidden');
+                            }
+                        });
+                        
+                        // 序号位置变更
+                        document.querySelectorAll(`input[name="numberPosition_${rule.id}"]`)?.forEach(radio => {
+                            radio.addEventListener('change', (e) => {
+                                updateRuleProperty(rule.id, 'numberPosition', e.target.value);
+                            });
+                        });
+                        
+                        document.getElementById(`baseName_${rule.id}`)?.addEventListener('input', (e) => {
+                            updateRuleProperty(rule.id, 'baseName', e.target.value);
+                        });
+                        document.getElementById(`startNumber_${rule.id}`)?.addEventListener('input', (e) => {
+                            updateRuleProperty(rule.id, 'startNumber', parseInt(e.target.value) || 1);
+                        });
+                        document.getElementById(`numberPadding_${rule.id}`)?.addEventListener('input', (e) => {
+                            updateRuleProperty(rule.id, 'numberPadding', parseInt(e.target.value) || 1);
+                        });
+                        document.getElementById(`separator_${rule.id}`)?.addEventListener('change', (e) => {
+                            updateRuleProperty(rule.id, 'separator', e.target.value);
+                        });
+                        break;
+                }
+            });
+            
+            // 删除规则
+            document.querySelectorAll('.delete-rule').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const ruleId = parseInt(e.currentTarget.dataset.id);
+                    rules = rules.filter(r => r.id !== ruleId);
+                    renderRules();
+                    updatePreview();
+                    showNotification('规则已删除', 'info');
+                });
+            });
+        }
+
+        // 更新规则属性
+        function updateRuleProperty(ruleId, property, value) {
+            const ruleIndex = rules.findIndex(r => r.id === ruleId);
+            if (ruleIndex !== -1) {
+                rules[ruleIndex][property] = value;
+                updatePreview();
+            }
+        }
+
+        // 选择保存目录
+        async function selectSaveDirectory() {
+            try {
+                const handle = await window.showDirectoryPicker();
+                saveDirectory = handle;
+                
+                // 获取并保存目录路径
+                saveDirectoryPath = await getDirectoryPath(handle);
+                
+                // 显示目录信息
+                elements.saveDirDisplay.value = saveDirectoryPath;
+                
+                updateApplyButtonState();
+                showNotification('保存目录已选择', 'success');
+            } catch (err) {
+                console.error('选择目录时出错:', err);
+                showNotification('无法选择目录: ' + err.message, 'error');
+            }
+        }
+
+        // 获取目录路径
+        async function getDirectoryPath(directoryHandle, path = '') {
+            try {
+                // 尝试获取父目录
+                const parent = await directoryHandle.getParent();
+                if (parent) {
+                    // 递归获取完整路径
+                    return getDirectoryPath(parent, `/${directoryHandle.name}${path}`);
+                }
+            } catch (e) {
+                // 到达根目录或无法获取父目录
+                return `/${directoryHandle.name}${path}`;
+            }
+            return directoryHandle.name + path;
+        }
+
+        // 更新预览
+        function updatePreview() {
+            // 隐藏结果区域，显示预览区域
+            elements.resultsContainer.classList.add('hidden');
+            elements.previewContainer.classList.remove('hidden');
+            
+            // 检查是否有需要预览的内容
+            let hasContent = false;
+            
+            if (operationType === 'createFolders') {
+                hasContent = true;
+                renderCreateFoldersPreview();
+            } else if (selectedItems.length > 0) {
+                hasContent = true;
+                if (operationType === 'files') {
+                    renderFilesPreview();
+                } else {
+                    renderFoldersPreview();
+                }
+            }
+            
+            if (!hasContent) {
+                elements.previewContainer.innerHTML = `
+                    <div class="text-gray-500 text-center py-6">
+                        <i class="fa fa-eye-slash mb-2 text-gray-300"></i>
+                        <p>选择文件/文件夹并设置规则后显示预览</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 渲染文件预览
+        function renderFilesPreview() {
+            let html = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2 text-xs text-gray-500">
+                    <div class="font-medium">原文件名</div>
+                    <div class="font-medium">新文件名</div>
+                </div>
+                <div class="space-y-2 max-h-40 overflow-y-auto">
+            `;
+            
+            selectedItems.forEach((item, index) => {
+                const newName = generateNewFileName(item, index);
+                
+                html += `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 p-1.5 hover:bg-gray-50 rounded text-sm">
+                        <div class="truncate text-gray-600">${item.name}</div>
+                        <div class="truncate font-medium text-primary">${newName}</div>
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+            elements.previewContainer.innerHTML = html;
+        }
+
+        // 渲染文件夹预览
+        function renderFoldersPreview() {
+            let html = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2 text-xs text-gray-500">
+                    <div class="font-medium">原文件夹名</div>
+                    <div class="font-medium">新文件夹名</div>
+                </div>
+                <div class="space-y-2 max-h-40 overflow-y-auto">
+            `;
+            
+            selectedItems.forEach((item, index) => {
+                const newName = generateNewFolderName(item, index);
+                
+                html += `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 p-1.5 hover:bg-gray-50 rounded text-sm">
+                        <div class="truncate text-gray-600">${item.name}</div>
+                        <div class="truncate font-medium text-accent">${newName}</div>
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+            elements.previewContainer.innerHTML = html;
+        }
+
+        // 渲染创建文件夹预览
+        function renderCreateFoldersPreview() {
+            let html = `
+                <div class="mb-2 text-xs text-gray-500 font-medium">
+                    将创建以下文件夹
+                </div>
+                <div class="space-y-2 max-h-40 overflow-y-auto">
+            `;
+            
+            for (let i = 0; i < folderCount; i++) {
+                const folderName = generateNewFolderName({name: folderBaseName}, i);
+                
+                html += `
+                    <div class="p-1.5 hover:bg-gray-50 rounded text-sm flex items-center">
+                        <i class="fa fa-folder-o text-accent mr-2"></i>
+                        <div class="truncate font-medium text-accent">${folderName}</div>
+                    </div>
+                `;
+            }
+            
+            html += `</div>`;
+            elements.previewContainer.innerHTML = html;
+        }
+
+        // 生成新文件名
+        function generateNewFileName(file, index) {
+            // 分离文件名和扩展名
+            const dotIndex = file.name.lastIndexOf('.');
+            let nameWithoutExt = dotIndex > 0 ? file.name.substring(0, dotIndex) : file.name;
+            let ext = dotIndex > 0 ? file.name.substring(dotIndex) : '';
+            
+            // 应用所有规则到文件名（不含扩展名）
+            let newName = nameWithoutExt;
+            
+            rules.forEach(rule => {
+                newName = applyRule(newName, rule, index, nameWithoutExt);
+            });
+            
+            // 确保文件名不为空
+            if (!newName.trim()) {
+                newName = 'file';
+            }
+            
+            return newName + ext;
+        }
+
+        // 生成新文件夹名
+        function generateNewFolderName(folder, index) {
+            let newName = folder.name;
+            
+            rules.forEach(rule => {
+                newName = applyRule(newName, rule, index, folder.name);
+            });
+            
+            // 确保文件夹名不为空
+            if (!newName.trim()) {
+                newName = 'folder';
+            }
+            
+            return newName;
+        }
+
+        // 应用单个规则
+        function applyRule(name, rule, index, originalName) {
+            let result = name;
+            
+            switch(rule.type) {
+                case 'prefix-suffix':
+                    result = `${rule.prefix}${name}${rule.suffix}`;
+                    break;
+                    
+                case 'insert':
+                    let position = parseInt(rule.position) || 0;
+                    // 处理-1表示结尾
+                    if (position === -1) position = name.length;
+                    // 确保位置在有效范围内
+                    position = Math.max(0, Math.min(position, name.length));
+                    result = name.substring(0, position) + rule.insertText + name.substring(position);
+                    break;
+                    
+                case 'delete':
+                    const start = parseInt(rule.deleteStart) || 0;
+                    const count = parseInt(rule.deleteCount) || 1;
+                    // 确保起始位置有效
+                    const safeStart = Math.max(0, Math.min(start, name.length));
+                    result = name.substring(0, safeStart) + name.substring(safeStart + count);
+                    break;
+                    
+                case 'replace':
+                    if (rule.find) {
+                        const flags = rule.caseSensitive ? 'g' : 'gi';
+                        const regex = new RegExp(escapeRegExp(rule.find), flags);
+                        result = name.replace(regex, rule.replace);
+                    }
+                    break;
+                    
+                case 'sequence':
+                    const number = parseInt(rule.startNumber) + index;
+                    const paddedNumber = padNumber(number, parseInt(rule.numberPadding) || 1);
+                    
+                    // 根据是否保留原名称和序号位置生成不同的结果
+                    if (rule.keepOriginalName && originalName) {
+                        if (rule.numberPosition === 'before') {
+                            // 序号在原名称前
+                            result = `${paddedNumber}${rule.separator}${originalName}`;
+                        } else {
+                            // 序号在原名称后
+                            result = `${originalName}${rule.separator}${paddedNumber}`;
+                        }
+                    } else {
+                        // 不保留原名称，使用基础名称
+                        result = `${rule.baseName}${rule.separator}${paddedNumber}`;
+                    }
+                    break;
+                    
+                case 'uppercase':
+                    result = name.toUpperCase();
+                    break;
+                    
+                case 'lowercase':
+                    result = name.toLowerCase();
+                    break;
+                    
+                case 'capitalize':
+                    result = name.replace(/\b\w/g, c => c.toUpperCase());
+                    break;
+                    
+                case 'trim':
+                    // 移除所有空格
+                    result = name.replace(/\s+/g, '');
+                    break;
+            }
+            
+            return result;
+        }
+
+        // 转义正则表达式特殊字符
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        // 数字补零
+        function padNumber(num, length) {
+            return num.toString().padStart(length, '0');
+        }
+
+        // HTML转义
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // 更新应用按钮状态
+        function updateApplyButtonState() {
+            let enabled = false;
+            
+            if (saveDirectory) {
+                if (operationType === 'createFolders') {
+                    enabled = true;
+                } else if (selectedItems.length > 0) {
+                    enabled = true;
+                }
+            }
+            
+            elements.applyChanges.disabled = !enabled;
+        }
+
+        // 准备应用更改 - 先检查是否需要确认
+        async function prepareApplyChanges() {
+            if (!saveDirectory) return;
+            
+            // 禁用按钮防止重复操作
+            elements.applyChanges.disabled = true;
+            elements.applyChanges.innerHTML = '<i class="fa fa-spinner fa-spin mr-1"></i>检查项目...';
+            
+            try {
+                // 收集所有要操作的项目
+                itemsToConfirm = [];
+                let confirmMessage = '';
+                
+                // 显示删除警告
+                elements.deleteWarning.classList.add('hidden');
+                if (elements.deleteOriginal.checked) {
+                    elements.deleteWarning.classList.remove('hidden');
+                }
+                
+                if (operationType === 'files') {
+                    for (let i = 0; i < selectedItems.length; i++) {
+                        const item = selectedItems[i];
+                        const newName = generateNewFileName(item, i);
+                        itemsToConfirm.push({ 
+                            originalName: item.name, 
+                            newName: newName,
+                            path: selectedItemPaths[i],
+                            type: 'file' 
+                        });
+                    }
+                    
+                    if (elements.deleteOriginal.checked) {
+                        confirmMessage = `将重命名 ${itemsToConfirm.length} 个文件，并删除原文件。`;
+                        if (elements.overwriteFiles.checked) {
+                            confirmMessage += `目标位置与重命名后同名的文件将被覆盖。`;
+                        }
+                    } else {
+                        confirmMessage = `将重命名 ${itemsToConfirm.length} 个文件，并保留原文件。`;
+                        if (elements.overwriteFiles.checked) {
+                            confirmMessage += `目标位置与重命名后同名的文件将被覆盖。`;
+                        }
+                    }
+                } else if (operationType === 'folders') {
+                    for (let i = 0; i < selectedItems.length; i++) {
+                        const item = selectedItems[i];
+                        const newName = generateNewFolderName(item, i);
+                        itemsToConfirm.push({ 
+                            originalName: item.name, 
+                            newName: newName,
+                            path: selectedItemPaths[i],
+                            type: 'folder' 
+                        });
+                    }
+                    
+                    if (elements.deleteOriginal.checked) {
+                        confirmMessage = `将重命名 ${itemsToConfirm.length} 个文件夹，并删除原文件夹。`;
+                        if (elements.overwriteFiles.checked) {
+                            confirmMessage += `目标位置与重命名后同名的文件夹将被覆盖。`;
+                        }
+                    } else {
+                        confirmMessage = `将重命名 ${itemsToConfirm.length} 个文件夹，并保留原文件夹。`;
+                        if (elements.overwriteFiles.checked) {
+                            confirmMessage += `目标位置与重命名后同名的文件夹将被覆盖。`;
+                        }
+                    }
+                } else if (operationType === 'createFolders') {
+                    for (let i = 0; i < folderCount; i++) {
+                        const folderName = generateNewFolderName({name: folderBaseName}, i);
+                        itemsToConfirm.push({ 
+                            newName: folderName,
+                            type: 'folder' 
+                        });
+                    }
+                    
+                    confirmMessage = `将创建 ${folderCount} 个新文件夹。`;
+                    if (elements.overwriteFiles.checked) {
+                        confirmMessage += `目标位置与新文件夹同名的文件夹将被覆盖。`;
+                    }
+                }
+                
+                // 显示确认对话框
+                elements.confirmMessage.textContent = confirmMessage;
+                
+                // 显示项目列表
+                if (itemsToConfirm.length > 0) {
+                    elements.confirmItemsList.innerHTML = '';
+                    elements.confirmItemsList.classList.remove('hidden');
+                    
+                    itemsToConfirm.forEach(item => {
+                        const icon = item.type === 'file' ? 'fa-file-o text-primary' : 'fa-folder-o text-accent';
+                        const itemElement = document.createElement('div');
+                        itemElement.className = 'p-1 border-b last:border-0';
+                        
+                        if (item.originalName) {
+                            itemElement.innerHTML = `
+                                <div class="flex items-center">
+                                    <i class="fa ${icon} mr-2 text-xs"></i>
+                                    <span class="text-gray-600">${item.originalName}</span>
+                                    <i class="fa fa-arrow-right mx-2 text-gray-400 text-xs"></i>
+                                    <span class="font-medium">${item.newName}</span>
+                                </div>
+                            `;
+                        } else {
+                            itemElement.innerHTML = `
+                                <div class="flex items-center">
+                                    <i class="fa ${icon} mr-2 text-xs"></i>
+                                    <span class="font-medium">${item.newName}</span>
+                                </div>
+                            `;
+                        }
+                        
+                        elements.confirmItemsList.appendChild(itemElement);
+                    });
+                } else {
+                    elements.confirmItemsList.classList.add('hidden');
+                }
+                
+                // 显示对话框
+                elements.confirmDialog.classList.remove('hidden');
+                
+            } catch (err) {
+                console.error('准备操作时出错:', err);
+                showNotification('准备操作失败: ' + err.message, 'error');
+                
+                // 恢复按钮状态
+                elements.applyChanges.disabled = false;
+                elements.applyChanges.innerHTML = '<i class="fa fa-check mr-1"></i>应用更改';
+            }
+        }
+
+        // 继续执行操作
+        function proceedWithOperation() {
+            // 继续应用更改
+            applyChanges();
+        }
+
+        // 应用更改
+        async function applyChanges() {
+            if (!saveDirectory) return;
+            
+            try {
+                let successCount = 0;
+                let errorCount = 0;
+                const errors = [];
+                const overwrite = elements.overwriteFiles.checked;
+                const deleteOriginal = elements.deleteOriginal.checked;
+                
+                // 更新按钮状态
+                elements.applyChanges.innerHTML = '<i class="fa fa-spinner fa-spin mr-1"></i>处理中...';
+                
+                if (operationType === 'files') {
+                    // 处理文件重命名
+                    for (let i = 0; i < selectedItems.length; i++) {
+                        const item = selectedItems[i];
+                        const newName = generateNewFileName(item, i);
+                        
+                        try {
+                            await processFile(
+                                item.file, 
+                                newName, 
+                                overwrite, 
+                                deleteOriginal,
+                                selectedItemPaths[i]
+                            );
+                            successCount++;
+                        } catch (err) {
+                            console.error(`处理文件 ${item.name} 时出错:`, err);
+                            errorCount++;
+                            errors.push({ name: item.name, error: err.message });
+                        }
+                    }
+                } else if (operationType === 'folders') {
+                    // 处理文件夹重命名
+                    for (let i = 0; i < selectedItems.length; i++) {
+                        const item = selectedItems[i];
+                        const newName = generateNewFolderName(item, i);
+                        
+                        try {
+                            await processFolder(
+                                item, 
+                                newName, 
+                                overwrite, 
+                                deleteOriginal,
+                                selectedItemPaths[i]
+                            );
+                            successCount++;
+                        } catch (err) {
+                            console.error(`处理文件夹 ${item.name} 时出错:`, err);
+                            errorCount++;
+                            errors.push({ name: item.name, error: err.message });
+                        }
+                    }
+                } else if (operationType === 'createFolders') {
+                    // 创建新文件夹
+                    for (let i = 0; i < folderCount; i++) {
+                        const folderName = generateNewFolderName({name: folderBaseName}, i);
+                        
+                        try {
+                            await createFolder(folderName, overwrite);
+                            successCount++;
+                        } catch (err) {
+                            console.error(`创建文件夹 ${folderName} 时出错:`, err);
+                            errorCount++;
+                            errors.push({ name: folderName, error: err.message });
+                        }
+                    }
+                }
+                
+                // 显示结果
+                showResults(successCount, errorCount, errors);
+                
+                // 恢复按钮状态
+                elements.applyChanges.disabled = false;
+                elements.applyChanges.innerHTML = '<i class="fa fa-check mr-1"></i>应用更改';
+                
+            } catch (err) {
+                console.error('操作过程中出错:', err);
+                showNotification('操作失败: ' + err.message, 'error');
+                
+                // 恢复按钮状态
+                elements.applyChanges.disabled = false;
+                elements.applyChanges.innerHTML = '<i class="fa fa-check mr-1"></i>应用更改';
+            }
+        }
+
+        // 处理文件
+        async function processFile(file, newName, overwrite, deleteOriginal, originalPath) {
+            let fileHandle;
+            
+            if (overwrite) {
+                // 强制覆盖现有文件
+                try {
+                    // 先尝试删除现有文件
+                    const existingFile = await saveDirectory.getFileHandle(newName, { create: false });
+                    await existingFile.remove();
+                } catch (e) {
+                    // 文件不存在，无需删除
+                }
+                // 创建新文件
+                fileHandle = await saveDirectory.getFileHandle(newName, { create: true });
+            } else {
+                // 不覆盖，检查文件是否已存在
+                let finalName = newName;
+                let counter = 1;
+                
+                // 找到一个不存在的文件名
+                while (true) {
+                    try {
+                        await saveDirectory.getFileHandle(finalName, { create: false });
+                        // 文件存在，尝试新名称
+                        const dotIndex = newName.lastIndexOf('.');
+                        const nameWithoutExt = dotIndex > 0 ? newName.substring(0, dotIndex) : newName;
+                        const ext = dotIndex > 0 ? newName.substring(dotIndex) : '';
+                        finalName = `${nameWithoutExt} (${counter})${ext}`;
+                        counter++;
+                    } catch (e) {
+                        // 找到可用文件名
+                        break;
+                    }
+                }
+                
+                fileHandle = await saveDirectory.getFileHandle(finalName, { create: true });
+            }
+            
+            // 写入文件内容
+            const writable = await fileHandle.createWritable();
+            await writable.write(await file.arrayBuffer());
+            await writable.close();
+            
+            // 如果需要删除原文件
+            if (deleteOriginal) {
+                try {
+                    // 修复：正确设置文件类型，避免"Extension '*' must start with '.'"错误
+                    let fileToDelete;
+                    
+                    // 尝试1: 从原始目录中查找文件
+                    try {
+                        // 从原始路径中提取目录和文件名
+                        const pathParts = originalPath.split('/');
+                        const fileName = pathParts.pop();
+                        const directoryPath = pathParts.join('/');
+                        
+                        // 获取文件所在目录
+                        const dirHandle = await window.showDirectoryPicker({
+                            startIn: directoryPath || 'downloads'
+                        });
+                        
+                        // 获取文件句柄
+                        fileToDelete = await dirHandle.getFileHandle(fileName);
+                    } catch (err) {
+                        console.log('尝试1获取文件句柄失败:', err);
+                        
+                        // 尝试2: 直接让用户选择要删除的文件
+                        // 提取文件扩展名以正确设置类型
+                        const dotIndex = file.name.lastIndexOf('.');
+                        const fileExt = dotIndex > 0 ? file.name.substring(dotIndex) : '';
+                        
+                        showNotification(`请在弹出的窗口中选择要删除的原文件: ${file.name}`, 'info');
+                        
+                        // 修复：正确设置文件类型，避免扩展名校验错误
+                        const accept = {};
+                        if (fileExt) {
+                            // 对于有扩展名的文件，设置对应的MIME类型
+                            accept['application/*'] = [fileExt];
+                        } else {
+                            // 对于无扩展名的文件，使用通用类型
+                            accept['*/*'] = [];
+                        }
+                        
+                        const [handle] = await window.showOpenFilePicker({
+                            multiple: false,
+                            types: [{
+                                description: '文件',
+                                accept: accept
+                            }]
+                        });
+                        fileToDelete = handle;
+                    }
+                    
+                    // 删除文件
+                    if (fileToDelete) {
+                        await fileToDelete.remove();
+                    } else {
+                        throw new Error('无法获取文件句柄进行删除');
+                    }
+                } catch (err) {
+                    console.error('删除原文件失败:', err);
+                    throw new Error(`重命名成功，但无法删除原文件: ${err.message}`);
+                }
+            }
+        }
+
+        // 处理文件夹
+        async function processFolder(folder, newName, overwrite, deleteOriginal, originalPath) {
+            // 尝试获取文件夹句柄
+            let folderHandle;
+            try {
+                folderHandle = await window.showDirectoryPicker({
+                    startIn: folder.name
+                });
+            } catch (err) {
+                console.error('获取文件夹句柄失败:', err);
+                throw new Error('无法访问文件夹');
+            }
+            
+            // 处理覆盖
+            if (overwrite) {
+                try {
+                    // 先尝试删除现有文件夹
+                    const existingFolder = await saveDirectory.getDirectoryHandle(newName, { create: false });
+                    await existingFolder.remove({ recursive: true });
+                } catch (e) {
+                    // 文件夹不存在，无需删除
+                }
+            }
+            
+            // 创建新文件夹
+            let newFolderHandle;
+            try {
+                newFolderHandle = await saveDirectory.getDirectoryHandle(newName, { create: true });
+            } catch (e) {
+                // 如果创建失败（可能因为已存在且未启用覆盖），添加后缀
+                let counter = 1;
+                let finalName = newName;
+                
+                while (true) {
+                    try {
+                        finalName = `${newName} (${counter})`;
+                        newFolderHandle = await saveDirectory.getDirectoryHandle(finalName, { create: true });
+                        break;
+                    } catch (e) {
+                        counter++;
+                    }
+                }
+            }
+            
+            // 复制文件夹内容
+            await copyDirectoryContents(folderHandle, newFolderHandle);
+            
+            // 如果需要删除原文件夹
+            if (deleteOriginal) {
+                try {
+                    // 让用户手动选择要删除的文件夹
+                    showNotification(`请在弹出的窗口中选择要删除的原文件夹: ${folder.name}`, 'info');
+                    const handle = await window.showDirectoryPicker({
+                        // 不使用startIn参数，避免浏览器安全限制
+                    });
+                    
+                    // 确认选择的文件夹名称是否匹配
+                    if (handle.name === folder.name) {
+                        await handle.remove({ recursive: true });
+                    } else {
+                        throw new Error('选择的文件夹名称不匹配，取消删除');
+                    }
+                } catch (err) {
+                    console.error('删除原文件夹失败:', err);
+                    throw new Error(`重命名成功，但无法删除原文件夹: ${err.message}`);
+                }
+            }
+        }
+
+        // 复制文件夹内容
+        async function copyDirectoryContents(sourceHandle, destinationHandle) {
+            for await (const entry of sourceHandle.values()) {
+                if (entry.kind === 'file') {
+                    const file = await entry.getFile();
+                    const newFileHandle = await destinationHandle.getFileHandle(entry.name, { create: true });
+                    const writable = await newFileHandle.createWritable();
+                    await writable.write(await file.arrayBuffer());
+                    await writable.close();
+                } else if (entry.kind === 'directory') {
+                    const newDirHandle = await destinationHandle.getDirectoryHandle(entry.name, { create: true });
+                    await copyDirectoryContents(entry, newDirHandle);
+                }
+            }
+        }
+
+        // 创建文件夹
+        async function createFolder(folderName, overwrite) {
+            if (overwrite) {
+                try {
+                    // 先尝试删除现有文件夹
+                    const existingFolder = await saveDirectory.getDirectoryHandle(folderName, { create: false });
+                    await existingFolder.remove({ recursive: true });
+                } catch (e) {
+                    // 文件夹不存在，无需删除
+                }
+            }
+            
+            // 尝试创建文件夹
+            try {
+                await saveDirectory.getDirectoryHandle(folderName, { create: true });
+            } catch (e) {
+                // 如果创建失败（可能因为已存在且未启用覆盖），添加后缀
+                let counter = 1;
+                let finalName = folderName;
+                
+                while (true) {
+                    try {
+                        finalName = `${folderName} (${counter})`;
+                        await saveDirectory.getDirectoryHandle(finalName, { create: true });
+                        break;
+                    } catch (e) {
+                        counter++;
+                    }
+                }
+            }
+        }
+
+        // 显示结果
+        function showResults(success, errors, errorDetails) {
+            // 隐藏预览区域，显示结果区域
+            elements.previewContainer.classList.add('hidden');
+            elements.resultsContainer.classList.remove('hidden');
+            
+            // 更新结果摘要
+            elements.resultsSummary.textContent = `成功: ${success}, 失败: ${errors}`;
+            
+            // 更新结果列表
+            let html = '';
+            
+            if (operationType === 'createFolders') {
+                for (let i = 0; i < folderCount; i++) {
+                    const folderName = generateNewFolderName({name: folderBaseName}, i);
+                    const isError = errorDetails.some(item => item.name === folderName);
+                    const errorMsg = isError ? errorDetails.find(item => item.name === folderName).error : '';
+                    const icon = isError ? 'fa-times-circle text-red-500' : 'fa-check-circle text-green-500';
+                    const colorClass = isError ? 'text-red-600' : 'text-green-600';
+                    
+                    html += `
+                        <div class="p-1.5 hover:bg-gray-50 rounded text-sm flex items-center">
+                            <i class="fa ${icon} mr-2 text-xs"></i>
+                            <div class="truncate ${colorClass}">${folderName}</div>
+                            ${isError ? `<div class="ml-2 text-xs text-red-500 truncate">${errorMsg}</div>` : ''}
+                        </div>
+                    `;
+                }
+            } else {
+                selectedItems.forEach((item, index) => {
+                    const newName = operationType === 'files' 
+                        ? generateNewFileName(item, index)
+                        : generateNewFolderName(item, index);
+                        
+                    const isError = errorDetails.some(error => error.name === item.name);
+                    const errorMsg = isError ? errorDetails.find(error => error.name === item.name).error : '';
+                    const icon = isError ? 'fa-times-circle text-red-500' : 'fa-check-circle text-green-500';
+                    const colorClass = isError ? 'text-red-600' : 'text-green-600';
+                    
+                    html += `
+                        <div class="p-1.5 hover:bg-gray-50 rounded text-sm flex items-center">
+                            <i class="fa ${icon} mr-2 text-xs"></i>
+                            <div class="truncate ${colorClass}">${newName}</div>
+                            ${isError ? `<div class="ml-2 text-xs text-red-500 truncate">${errorMsg}</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+            
+            elements.resultsList.innerHTML = html;
+            
+            // 显示通知
+            if (errors === 0) {
+                showNotification(`操作完成，成功处理 ${success} 项`, 'success');
+            } else {
+                showNotification(`操作完成，成功 ${success} 项，失败 ${errors} 项`, 'warning');
+            }
+        }
+
+        // 打开保存目录
+        async function openSaveDirectory() {
+            if (saveDirectory && saveDirectoryPath) {
+                try {
+                    // 方法1: 使用showDirectoryPicker尝试让系统显示目录
+                    await window.showDirectoryPicker({
+                        startIn: saveDirectory
+                    });
+                    return;
+                } catch (err1) {
+                    try {
+                        // 方法2: 尝试使用文件系统访问API的showOpenFilePicker
+                        await window.showOpenFilePicker({
+                            startIn: saveDirectory,
+                            mode: 'readwrite'
+                        });
+                        return;
+                    } catch (err2) {
+                        console.log('直接打开目录失败，提供替代方案:', err2);
+                        
+                        // 显示路径并提供复制功能
+                        showNotification(`保存目录: ${saveDirectoryPath}`, 'info', true);
+                    }
+                }
+            }
+        }
+
+        // 复制当前路径到剪贴板
+        async function copyCurrentPath() {
+            if (saveDirectoryPath) {
+                try {
+                    await navigator.clipboard.writeText(saveDirectoryPath);
+                    showNotification('路径已复制到剪贴板', 'success');
+                } catch (err) {
+                    console.error('复制路径失败:', err);
+                    showNotification('无法复制路径，请手动复制', 'error');
+                }
+            }
+        }
+
+        // 显示通知
+        function showNotification(message, type = 'info', showCopy = false) {
+            const iconClass = {
+                success: 'fa-check-circle text-green-500',
+                error: 'fa-exclamation-circle text-red-500',
+                info: 'fa-info-circle text-blue-500',
+                warning: 'fa-exclamation-triangle text-yellow-500'
+            };
+            
+            const bgColor = {
+                success: 'bg-green-50 text-green-800',
+                error: 'bg-red-50 text-red-800',
+                info: 'bg-blue-50 text-blue-800',
+                warning: 'bg-yellow-50 text-yellow-800'
+            };
+            
+            elements.notificationIcon.className = `fa ${iconClass[type]}`;
+            elements.notificationMessage.textContent = message;
+            elements.notification.className = `fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg transform translate-y-0 opacity-100 transition-all duration-300 flex items-center z-50 text-sm ${bgColor[type]}`;
+            
+            // 显示或隐藏复制按钮
+            if (showCopy && saveDirectoryPath) {
+                elements.copyPathBtn.classList.remove('hidden');
+            } else {
+                elements.copyPathBtn.classList.add('hidden');
+            }
+            
+            // 对于路径通知，不自动隐藏
+            if (!showCopy) {
+                setTimeout(() => {
+                    elements.notification.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center z-50 text-sm';
+                }, 5000);
+            }
+        }
+
+        // 切换主题
+        function toggleTheme() {
+            const isDark = document.body.classList.toggle('bg-gray-900');
+            document.body.classList.toggle('text-white', isDark);
+            document.body.classList.toggle('text-gray-800', !isDark);
+            
+            // 更新主题图标
+            const icon = elements.themeToggle.querySelector('i');
+            if (isDark) {
+                icon.className = 'fa fa-sun-o';
+            } else {
+                icon.className = 'fa fa-moon-o';
+            }
+            
+            // 通知用户
+            showNotification(`已切换到${isDark ? '深色' : '浅色'}模式`, 'info');
+        }
+
+        // 初始化应用
+        function initApp() {
+            initEventListeners();
+            renderRules();
+            updateOperationUI();
+            showNotification('欢迎使用高级批量重命名工具', 'info');
+        }
+
+        // 启动应用
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
+    
